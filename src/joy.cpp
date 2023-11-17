@@ -3,6 +3,7 @@
 #include "joy.hpp"
 #include "controllers.hpp"
 #include <cstdio>
+#include <cmath>
 
 #define COS_NEG45 (0.70710678118)
 #define SIN_NEG45 (-0.70710678118)
@@ -49,10 +50,17 @@ void DifferentialToJoyTranslator::get_sbus_joy(float &joy_x_out, float &joy_y_ou
     left_scaled = constrain(left_scaled, -1.0, 1.0);
     right_scaled = constrain(right_scaled, -1.0, 1.0);
 
-    // sprintf(buffer, "left channel: %d; right channel: %d;", left, right);
-    // Serial.println(buffer);
-    // sprintf(buffer, "left norm: %.4f; right norm: %.4f", left_scaled, right_scaled);
-    // Serial.println(buffer);
+    sprintf(buffer, "left channel: %d; right channel: %d;", left, right);
+    Serial.println(buffer);
+    sprintf(buffer, "left norm: %.4f; right norm: %.4f", left_scaled, right_scaled);
+    Serial.println(buffer);
+
+    if (abs(left_scaled) < 0.1) {
+        left_scaled = 0;
+    }
+    if (abs(right_scaled) < 0.1) {
+        right_scaled = 0;
+    }
 
     joy_x_out = right_scaled;
     joy_y_out = left_scaled;
