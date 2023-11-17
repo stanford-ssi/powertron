@@ -108,16 +108,16 @@ bool is_close(float a, float b, float MAX_DIFF = 0.001) {
 }
 
 void setup_LEDS() {
-    pinMode(LED_STAT_PIN, OUTPUT);
-    pinMode(LED_ERR_PIN, OUTPUT);
-    pixels.begin();
-    pixels.show();
-    pixels.setBrightness(BRIGHTNESS);
-    pixels.fill(0xFFFFFFFF);
-    pixels.show();
-    delay(500);
-    pixels.clear();
-    pixels.show();
+    // pinMode(LED_STAT_PIN, OUTPUT);
+    // pinMode(LED_ERR_PIN, OUTPUT);
+    // pixels.begin();
+    // pixels.show();
+    // pixels.setBrightness(0);
+    // pixels.fill(0xFFFFFFFF);
+    // pixels.show();
+    // delay(500);
+    // pixels.clear();
+    // pixels.show();
 }
 
 void setup_joy() {
@@ -126,8 +126,8 @@ void setup_joy() {
 }
 
 void setup_watchdog() {
-    pinMode(WATCHDOG_PIN, OUTPUT);
-    digitalWrite(WATCHDOG_PIN, LOW);
+    // pinMode(WATCHDOG_PIN, OUTPUT);
+    // digitalWrite(WATCHDOG_PIN, LOW);
 }
 
 void setup() {
@@ -242,8 +242,8 @@ void handle_telem(system_data_t *system_data) {
     if (debug_data != "") {
         system_telem["debug_data"] = debug_data;
     }
-    serializeJson(doc, Serial);
-    Serial.println();
+    // serializeJson(doc, Serial);
+    // Serial.println();
 }
 
 void handle_LEDS() {
