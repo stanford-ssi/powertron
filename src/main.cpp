@@ -242,8 +242,8 @@ void handle_telem(system_data_t *system_data) {
     if (debug_data != "") {
         system_telem["debug_data"] = debug_data;
     }
-    // serializeJson(doc, Serial);
-    // Serial.println();
+    serializeJson(doc, Serial);
+    Serial.println();
 }
 
 void handle_LEDS() {
