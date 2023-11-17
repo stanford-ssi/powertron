@@ -1,0 +1,559 @@
+#include <Arduino.h>
+
+// Rob Tilaart's MCP4725 library https://github.com/RobTillaart/MCP4725
+#include <MCP4725.h>
+// Bolder flight sbus library: https://github.com/bolderflight/sbus
+#include "CandT.hpp"
+#include "ODriveArduino.h"
+#include "RoboClaw.hpp"
+#include "Wire.h"
+#include "joy.hpp"
+#include "powerchairout.hpp"
+#include "sbus.h"
+#include <Adafruit_NeoPixel.h>
+#include <ArduinoJson.h>
+#include <max6675.h>
+#include <PID_v1.h>
+
+/**
+ * firmware for the Cislune Excavators BTILC rover.
+ *
+ * TODOs:
+ * - need to have some startup safety checkout and not enable anything if that fails
+ * - error LEDs
+ * - addressable LED control
+ * - dig mode with feedback
+ * - fault modes and fault clearing
+ *
+ */
+
+// ------------- Defines ----------------
+#define SBUS_PIN 35
+#define SBUS_THROTTLE_CHANNEL 1
+#define SBUS_STEERING_CHANNEL 0
+#define SBUS_DISARM_CHANNEL 10
+
+// I2C addresses of DACs
+#define YDAC_ADDR 0x60
+#define XDAC_ADDR 0x61
+
+//#define DEBUG
+
+// Liftarm addresses
+#define LIFTARM_ADDRESS 0x80
+#define LIFTARM_ACCEL 1000
+#define LIFTARM_SPEED 100
+#define LIFTARM_DECCEL 1000
+#define DRUMMOTOR_KV 190.0
+
+// Timing and status
+#define LOOP_PERIOD 25 // attempt to run at 20ms intervals (e.g. 40 hz)
+#define LED_DELAY 250  // minimum time between LED blinks
+#define LED_STAT_PIN 11
+#define LED_ERR_PIN 10
+#define NEOPIXEL_PIN 12
+#define NUM_NEOPIXELS 8
+
+// Thermistors
+#define THERMISTOR0_CS 32
+#define THERMISTOR1_CS 31
+#define THERMISTOR2_CS 30
+#define THERMISTOR3_CS 29
+#define THERMISTOR4_CS 28
+#define THERMISTOR_DO 1
+#define THERMISTOR_SCK 27
+
+// Fans
+#define FAN0_PWM_PIN 39
+#define FAN0_TACH_PIN 40
+#define FAN1_PWM_PIN 37
+#define FAN1_TACH_PIN 38
+
+// Hard limits
+#define DRUM_MAX_SPEED 10
+
+// ------------- Declarations ---------------
+
+MCP4725 y_dac(YDAC_ADDR, &Wire);
+MCP4725 x_dac(XDAC_ADDR, &Wire);
+
+bfs::SbusRx sbus_rx(&Serial8);
+bfs::SbusData data;
+JoyToJoyTranslator translator(&sbus_rx, SBUS_THROTTLE_CHANNEL, SBUS_STEERING_CHANNEL);
+JoystickEmu powerchair_out(XDAC_ADDR, YDAC_ADDR, &Wire);
+
+HardwareSerial &frontdrum_serial = Serial6;
+HardwareSerial &aftdrum_serial = Serial5;
+
+RoboClaw liftarm_controller(&Serial4, 10000);
+ODriveArduino frontdrum_controller(frontdrum_serial);
+ODriveArduino aftdrum_controller(aftdrum_serial);
+
+// LED Blink type definitions for errors
+const uint8_t led_status_err[] = {1, 0, 1, 0, 1, 0, 1, 0};
+unsigned long last_blink = 0;
+int led_status_index = 0;
+bool last_led_status = false;
+
+MAX6675 Therm0(THERMISTOR_SCK, THERMISTOR0_CS, THERMISTOR_DO);
+MAX6675 Therm1(THERMISTOR_SCK, THERMISTOR1_CS, THERMISTOR_DO);
+MAX6675 Therm2(THERMISTOR_SCK, THERMISTOR2_CS, THERMISTOR_DO);
+MAX6675 Therm3(THERMISTOR_SCK, THERMISTOR3_CS, THERMISTOR_DO);
+MAX6675 Therm4(THERMISTOR_SCK, THERMISTOR4_CS, THERMISTOR_DO);
+
+Adafruit_NeoPixel pixels(NUM_NEOPIXELS, NEOPIXEL_PIN, NEO_GRB + NEO_KHZ800);
+
+uint32_t fan0_last_tach_count = 0;
+volatile uint32_t fan0_tach_count = 0;
+
+uint32_t fan1_last_tach_count = 0;
+volatile uint32_t fan1_tach_count = 0;
+
+enum current_system_mode_t {
+    MODE_MANUAL = 0x00,
+    MODE_GUIDED = 0x01,
+    MODE_AUTODIG = 0x02,
+    MODE_MANUAL_AUTODIG = 0x03,
+};
+
+enum current_system_fault_t {
+    SYSTEM_FAULT_NONE = 0x00,
+    SYSTEM_FAULT_RED = 0x01
+};
+
+struct autodig_params_t {
+    float target_torque;
+    float target_velocity;
+    bool aft_contacted;
+    bool fore_contacted;
+
+    float Kp;
+    float Ki;
+
+    float fore_input;
+    float fore_output;
+    float fore_setpoint;
+    
+    float aft_input;
+    float aft_output;
+    float aft_setpoint;
+
+    PID *fore_PID;
+    PID *aft_PID;
+};
+
+// ------------  Globals ---------------------
+
+current_system_mode_t global_mode = MODE_MANUAL;
+current_system_fault_t global_fault = SYSTEM_FAULT_NONE;
+
+autodig_params_t global_autodig_params = {
+    .target_torque = 0.0,
+    .target_velocity = 0.0,
+    .aft_contacted = false,
+    .fore_contacted = false,
+    .Kp = 0.1,
+    .Ki = 0.1,
+};
+
+
+// ------------- Function prototypes -----------
+
+
+// ------------------------------------
+void setup_drums() {
+    frontdrum_serial.begin(115200);
+    aftdrum_serial.begin(115200);
+
+    frontdrum_serial.print("w axis0.controller.config.vel_limit 10.0\n");
+    frontdrum_serial.print("w axis0.motor.config.current_lim 11.0\n");
+
+    int requested_state = AXIS_STATE_CLOSED_LOOP_CONTROL;
+    if (!frontdrum_controller.run_state(0, requested_state, false /*don't wait*/)) {
+    }
+}
+
+void setup_lifts() { liftarm_controller.begin(38400); }
+
+float encoder_to_height(int32_t encoder) {
+    // basicmicro encoder returns from 0 to 2047 across full range
+    int32_t encoder_center = encoder - 1024;
+    // assume 10" stroke where 5" is 0.5 meters of stroke
+    float height = (encoder_center / 1024.0) * 0.5;
+    return height;
+}
+
+void fan0_tach_ISR() {
+    fan0_tach_count ++;
+}
+
+void fan1_tach_ISR() {
+    fan1_tach_count ++;
+}
+
+void setup_fans() {
+    pinMode(FAN0_TACH_PIN, INPUT_PULLUP);
+    pinMode(FAN0_PWM_PIN, OUTPUT);
+    // we should just run full at all times
+    digitalWrite(FAN0_PWM_PIN, LOW); 
+
+    pinMode(FAN0_TACH_PIN, INPUT_PULLUP);
+    pinMode(FAN0_PWM_PIN, OUTPUT);
+    // we should just run full at all times
+    digitalWrite(FAN0_PWM_PIN, HIGH); 
+
+    attachInterrupt(FAN0_TACH_PIN, fan0_tach_ISR, RISING);
+    attachInterrupt(FAN1_TACH_PIN, fan1_tach_ISR, RISING);
+}
+
+void setup_LEDS() {
+    pinMode(LED_STAT_PIN, OUTPUT);
+    pinMode(LED_ERR_PIN, OUTPUT);
+    pixels.begin();
+}
+
+void setup_joy() {
+    powerchair_out.init();
+    sbus_rx.Begin();
+}
+
+void setup() {
+    Serial.begin(2000000);
+    pinMode(CORE_LED0_PIN, OUTPUT);
+    Serial.println("System booted");
+
+    setup_joy();
+    setup_drums();
+    setup_lifts();
+    setup_LEDS();
+    setup_fans();
+}
+
+void handle_joystick(drive_data_t *drive_data) {
+    float joy_x = 0.0;
+    float joy_y = 0.0;
+
+    // If the servo's aren't ready, just write to middle
+    // TODO(Heidt) should probably fire a timeout or reset to middle when no signal in
+    // TODO(Heidt) handle the failsafe, would be nice to setup for this
+    if (sbus_rx.Read()) {
+        translator.get_sbus_joy(joy_x, joy_y);
+        powerchair_out.powerchairout(joy_x, joy_y);
+
+        bfs::SbusData data = sbus_rx.data();
+        drive_data->status = data.ch[SBUS_DISARM_CHANNEL];
+        drive_data->x = joy_x;
+        drive_data->y = joy_y;
+    } else {
+        powerchair_out.powerchairout(0, 0);
+        drive_data->has_error = true;
+        drive_data->error_message = F("Joystick error: no data from SBUS,");
+    }
+}
+
+// TODO(Heidt) should probably not use global structs to pass around commands
+
+void handle_ping() {
+    StaticJsonDocument<256> doc;
+    doc["type"] = ID_PING_RESP;
+    serializeJson(doc, Serial);
+    Serial.println();
+}
+
+uint32_t lift_height_to_position(float height) {
+    // TODO(Heidt) figure out coversion
+    // value of lifts is about 660 to 2047, scale from min to max
+    // placeholder of -0.5 to 0.5, should do the trig here as well!
+    height = constrain(height, -0.5, 0.5);
+    height = map(height, -0.5, 0.5, 660, 2047);
+    return (uint32_t)height;
+}
+
+void command_fore_lift(float height) {
+    uint32_t front_position = lift_height_to_position(height);
+    liftarm_controller.SpeedAccelDeccelPositionM2(LIFTARM_ADDRESS, LIFTARM_ACCEL, LIFTARM_SPEED, LIFTARM_DECCEL, front_position, 0);
+}
+
+void command_aft_lift(float height) {
+    uint32_t aft_position = lift_height_to_position(height);
+    liftarm_controller.SpeedAccelDeccelPositionM1(LIFTARM_ADDRESS, LIFTARM_ACCEL, LIFTARM_SPEED, LIFTARM_DECCEL, aft_position, 0);
+}
+
+void command_fore_drum_speed(float speed) {
+    speed = constrain(speed, -DRUM_MAX_SPEED, DRUM_MAX_SPEED);
+    frontdrum_controller.SetVelocity(0, speed);
+}
+
+void command_aft_drum_speed(float speed) {
+    speed = constrain(speed, -DRUM_MAX_SPEED, DRUM_MAX_SPEED);
+    aftdrum_controller.SetVelocity(0, speed);
+}
+
+template <unsigned int T>
+void command_set_drum_mode(const StaticJsonDocument<T> &doc) {
+    global_mode = doc["mode"];
+    if (doc["mode"] == (unsigned int)MODE_AUTODIG) {
+        global_autodig_params.target_torque = doc["target_torque"];
+        global_autodig_params.target_velocity = doc["target_velocity"];
+        command_fore_drum_speed(doc["target_velocity"]);
+        command_aft_drum_speed(doc["target_velocity"]);
+    }
+}
+
+bool handle_commands() {
+    static char bytearray[256] = {0};
+    static int idx = 0;
+    StaticJsonDocument<256> doc;
+
+    while (Serial.available()) {
+        char bytein = Serial.read();
+        bytearray[idx++] = bytein;
+        // CDC USB Device so built in CRC and retry, no need for crc check
+        if (bytein == '\n') {
+            DeserializationError error = deserializeJson(doc, bytearray);
+            if (error) {
+
+            } else {
+                if (doc["type"] == ID_SET_AFT_DRUM_SPEED) {
+                    command_aft_drum_speed(doc["speed"]);
+                } else if (doc["type"] == ID_SET_AFT_DRUM_HEIGHT) {
+                    command_aft_lift(doc["height"]);
+                } else if (doc["type"] == ID_SET_FORE_DRUM_SPEED) {
+                    command_fore_drum_speed(doc["speed"]);
+                } else if (doc["type"] == ID_SET_FORE_DRUM_HEIGHT) {
+                    command_fore_lift(doc["height"]);
+                } else if (doc["type"] == ID_PING) {
+                    handle_ping();
+                } else if (doc["type"] == ID_SET_DRUM_MODE) {
+                    command_set_drum_mode(doc);
+                }
+            }
+            idx = 0;
+        }
+    }
+    return true;
+}
+
+void handle_lifts(lift_data_t *lift_data) {
+    lift_data->error_message = String("");
+    lift_data->has_error = false;
+
+    bool is_error_valid = true;
+    uint32_t error = liftarm_controller.ReadError(LIFTARM_ADDRESS, &is_error_valid);
+    if (is_error_valid) {
+        if (error != 0) {
+            lift_data->error_message += F("Lift error: ");
+            lift_data->error_message += error;
+            lift_data->error_message += F(", ");
+            lift_data->has_error = true;
+        }
+    } else {
+        lift_data->error_message += F("Lift error read invalid, ");
+        lift_data->has_error = true;
+    }
+
+    uint8_t status_front, status_rear;
+    bool valid_front, valid_rear;
+    int32_t encoder_front =
+        liftarm_controller.ReadEncM1(LIFTARM_ADDRESS, &status_front, &valid_front);
+    int32_t encoder_rear = liftarm_controller.ReadEncM2(LIFTARM_ADDRESS, &status_rear, &valid_rear);
+
+    if (valid_front) {
+        lift_data->fore_lift_position = encoder_to_height(encoder_front);
+    }
+
+    if (valid_rear) {
+        lift_data->aft_lift_position = encoder_to_height(encoder_rear);
+    }
+
+    uint16_t temp1, temp2;
+    bool is_temp1_valid, is_temp2_valid;
+    is_temp1_valid = liftarm_controller.ReadTemp(LIFTARM_ADDRESS, temp1);
+    is_temp2_valid = liftarm_controller.ReadTemp2(LIFTARM_ADDRESS, temp2);
+    // temperature values are in 1/10th degree C
+    if (is_temp1_valid) {
+        lift_data->temp1 = ((float)temp1) / 10.0;
+    }
+    if (is_temp2_valid) {
+        lift_data->temp2 = ((float)temp2) / 10.0;
+    }
+}
+
+void handle_drums(drum_data_t *drum_data) {
+    bool fore_no_error = true;
+    bool aft_no_error = true;
+    drum_data->has_error = false;
+    drum_data->error_message = "";
+
+    float fore_speed = frontdrum_controller.GetVelocity(0);
+    fore_no_error &= frontdrum_controller.GetChecksumSuccess() & !frontdrum_controller.GetTimeout();
+    float aft_speed = aftdrum_controller.GetVelocity(0);
+    aft_no_error &= aftdrum_controller.GetChecksumSuccess() & !aftdrum_controller.GetTimeout();
+    float fore_current = frontdrum_controller.GetCurrent(0);
+    fore_no_error &= frontdrum_controller.GetChecksumSuccess() & !frontdrum_controller.GetTimeout();
+    float aft_current = aftdrum_controller.GetCurrent(0);
+    aft_no_error &= aftdrum_controller.GetChecksumSuccess() & !aftdrum_controller.GetTimeout();
+
+    // TODO(Heidt) check error status
+    // TODO(Heidt) get temperature data
+
+    // might want to use commanded current! this apparently yields more stable data, especially at lower speeds
+    // 8.27/Kv converts to Ki
+    // multiply by 57.14 to get drum torque!
+    float fore_torque = fore_current * 8.27 / DRUMMOTOR_KV * 57.14;
+    float aft_torque = aft_current * 8.27 / DRUMMOTOR_KV * 57.14;
+
+    // We want to report drum speed in RPM, not rev/s
+    // we also have a 57.14:1 gearing ratio, we want to represent drum, not motor
+    fore_speed *= 60.0 / 57.14;
+    aft_speed *= 60.0 / 57.14;
+
+    if (fore_no_error) {
+        drum_data->fore_drum_current = fore_current;
+        drum_data->fore_drum_torque = fore_torque;
+        drum_data->fore_drum_speed = fore_speed;
+    }
+    if (aft_no_error) {
+        drum_data->aft_drum_current = aft_current;
+        drum_data->aft_drum_torque = aft_torque;
+        drum_data->aft_drum_speed = aft_speed;
+    }
+    if (!fore_no_error || !aft_no_error) {
+        drum_data->has_error = true;
+        if (!fore_no_error)
+            drum_data->error_message += "Fore drum communication error, ";
+        if (!aft_no_error)
+            drum_data->error_message += "Aft drum communication error, ";
+    }
+
+    frontdrum_controller.FeedDog(0);
+    aftdrum_controller.FeedDog(0);
+}
+
+void handle_telem(system_data_t *system_data) {
+    StaticJsonDocument<1024> doc;
+    doc["type"] = ID_TELEM;
+    JsonObject drive_telem = doc.createNestedObject("drive_telem");
+    JsonObject drum_telem_fore = doc.createNestedObject("drum_telem_fore");
+    JsonObject drum_telem_aft = doc.createNestedObject("drum_telem_aft");
+    JsonObject system_telem = doc.createNestedObject("system_telem");
+
+    drive_telem["joy_x"] = system_data->drive_data.x;
+    drive_telem["joy_y"] = system_data->drive_data.y;
+    drive_telem["drive_status"] = system_data->drive_data.status;
+
+    drum_telem_fore["speed"] = system_data->drum_data.fore_drum_speed;
+    drum_telem_fore["height"] = system_data->lift_data.fore_lift_position;
+    drum_telem_fore["force"] = system_data->drum_data.fore_drum_torque;
+    drum_telem_fore["current"] = system_data->drum_data.fore_drum_current;
+
+    drum_telem_aft["speed"] = system_data->drum_data.aft_drum_speed;
+    drum_telem_aft["height"] = system_data->lift_data.aft_lift_position;
+    drum_telem_aft["force"] = system_data->drum_data.aft_drum_torque;
+    drum_telem_aft["current"] = system_data->drum_data.aft_drum_current;
+
+    JsonArray thermal_array = doc.createNestedArray("thermal_telem");
+    for (int i = 0; i < NUM_THERMAL_SENSORS; i++) {
+        JsonObject thermal_data = thermal_array.createNestedObject();
+        thermal_data["name"] = thermal_sensor_names[i];
+        thermal_data["temperature"] = system_data->thermistors.temperatures[i];
+    }
+
+    system_telem["drive_errors"] = "";
+    system_telem["drum_errors"] = "";
+    system_telem["lift_errors"] = "";
+
+    if (system_data->drive_data.has_error) {
+        system_telem["drive_errors"] = system_data->drive_data.error_message;
+    }
+    if (system_data->drum_data.has_error) {
+        system_telem["drum_errors"] = system_data->drum_data.error_message;
+    }
+    if (system_data->lift_data.has_error) {
+        system_telem["lift_errors"] = system_data->lift_data.error_message;
+    }
+    serializeJson(doc, Serial);
+    Serial.println();
+}
+
+void handle_thermals(thermistor_data_t *thermistors) {
+    thermistors->temperatures[0] = Therm0.readCelsius();
+    thermistors->temperatures[1] = Therm1.readCelsius();
+    thermistors->temperatures[2] = Therm2.readCelsius();
+    thermistors->temperatures[3] = Therm3.readCelsius();
+    thermistors->temperatures[4] = Therm4.readCelsius();
+}
+
+void handle_fans(fan_data_t *fan_data) {
+    fan_data->has_error = false;
+    fan_data->error_message = "";
+
+    uint32_t fan0_latest_tach, fan1_latest_tach;
+    noInterrupts();
+    fan0_latest_tach = fan0_tach_count;
+    fan1_latest_tach = fan1_tach_count;
+    interrupts();
+
+    if(fan0_latest_tach == fan0_last_tach_count) {
+        fan_data->has_error = true;
+        fan_data->error_message += F("fan0 halted, ");
+    }
+    if(fan1_latest_tach == fan1_last_tach_count) {
+        fan_data->has_error = true;
+        fan_data->error_message += F("fan1 halted, ");
+    }
+
+    fan0_last_tach_count = fan0_latest_tach;
+    fan1_last_tach_count = fan1_latest_tach;
+}
+
+void handle_LEDS() {
+    // TODO(HEIDT) create enum of LED statuses
+    last_led_status = !last_led_status;
+    digitalWrite(LED_STAT_PIN, last_led_status);
+
+    pixels.clear();
+    uint8_t color = last_led_status ? 255 : 0;
+    for (int i = 0; i < NUM_NEOPIXELS; i++) {
+        pixels.setPixelColor(i, pixels.Color(0, 0, color));
+    }
+    pixels.show();
+
+    // if (millis() - last_blink > LED_DELAY) {
+    //     led_status_index++;
+    //     led_status_index %= (sizeof(led_status_err) / sizeof(led_status_err[0]));
+    //     digitalWrite(LED_ERR_PIN, led_status_err[led_status_index]);
+    //     last_blink = millis();
+    // }
+}
+
+void delay_loop_period(unsigned long loop_end_time, unsigned long loop_start_time) {
+    if (loop_end_time - loop_start_time < LOOP_PERIOD) {
+        unsigned long time_to_delay = LOOP_PERIOD - (loop_start_time - loop_end_time);
+        delay(time_to_delay);
+    }
+}
+
+void handle_autodig(const drum_data_t &drum_data, const lift_data_t &lift_data) {
+    
+}
+
+void loop() {
+    unsigned long loop_start_time = millis();
+    static system_data_t system_data;
+
+    handle_commands();
+    handle_joystick(&system_data.drive_data);
+    handle_lifts(&system_data.lift_data);
+    handle_drums(&system_data.drum_data);
+    handle_thermals(&system_data.thermistors);
+    handle_fans(&system_data.fan_data);
+    handle_telem(&system_data);
+    handle_LEDS();
+    if(global_mode == MODE_AUTODIG) {
+        handle_autodig(system_data.drum_data, system_data.lift_data);
+    }
+    unsigned long loop_end_time = millis();
+    delay_loop_period(loop_end_time, loop_start_time);
+}
+
