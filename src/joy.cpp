@@ -21,7 +21,6 @@ void DifferentialToJoyTranslator::differential_to_joy(float diff_left, float dif
     char buffer[500];
     sprintf(buffer, "joy x: %.4f; joy y: %.4f\n\n\n", joy_x_out, joy_y_out);
     Serial.println(buffer);
-
 }
 
 void DifferentialToJoyTranslator::get_sbus_joy(float &joy_x_out, float &joy_y_out) {
