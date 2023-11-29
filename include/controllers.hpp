@@ -1,23 +1,23 @@
-#define FLYSKY_LEFT_MIN 353
-#define FLYSKY_LEFT_MAX 995
-
-#define FLYSKY_RIGHT_MIN 353
-#define FLYSKY_RIGHT_MAX 1637
-
-#define FLYSKY_REVERSED true
-
 typedef enum ControllerType {
-    FLYSKY
+    FLYSKY,
+    FLYSKY_LEFT
 } ControllerType_t;
 
-typedef struct ControllerProfile {
+struct ControllerProfile {
     int left_min;
     int right_min;
 
     int left_max;
     int right_max;
 
+    int arm_value;
+    int disarm_value;
+
     bool reversed;
+
+    int left_channel;
+    int right_channel;
+    int arm_channel;
 };
 
 ControllerProfile build_controller(ControllerType_t controller);

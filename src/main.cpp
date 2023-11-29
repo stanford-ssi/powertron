@@ -79,8 +79,7 @@ MCP4725 x_dac(XDAC_ADDR, &Wire);
 bfs::SbusRx sbus_rx(&Serial8);
 bfs::SbusData data;
 // JoyToJoyTranslator translator(&sbus_rx, SBUS_THROTTLE_CHANNEL, SBUS_STEERING_CHANNEL);
-DifferentialToJoyTranslator translator(&sbus_rx, SBUS_THROTTLE_LEFT_CHANNEL,
-                                       SBUS_THROTTLE_RIGHT_CHANNEL);
+DifferentialToJoyTranslator translator(&sbus_rx);
 JoystickEmu powerchair_out(XDAC_ADDR, YDAC_ADDR, &Wire);
 // LED Blink type definitions for errors
 const uint8_t led_status_err[] = {1, 0, 1, 0, 1, 0, 1, 0};
