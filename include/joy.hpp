@@ -13,7 +13,6 @@ class DifferentialToJoyTranslator : JoyTranslator {
     DifferentialToJoyTranslator(bfs::SbusRx *sbus_rx) : sbus_rx_(sbus_rx) {}
     void get_sbus_joy(float &joy_x_out, float &joy_y_out);
   private:
-    void differential_to_joy(float diff_left, float diff_right, float &joy_x_out, float &joy_y_out);
     
     bfs::SbusData data;
     bfs::SbusRx *sbus_rx_;

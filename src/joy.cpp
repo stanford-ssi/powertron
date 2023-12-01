@@ -11,32 +11,18 @@
 #define CONTROLLER FLYSKY
 #define DEBUG_PRINT false
 
-void DifferentialToJoyTranslator::differential_to_joy(float diff_left, float diff_right, float &joy_x_out, float &joy_y_out) {
-    // because of the mapping between these two, things get a little wonky at the corners, hence the scaling terms
-    joy_x_out = (COS_NEG45 * diff_left + SIN_NEG45 * diff_right) * (1.0/0.78);
-    joy_y_out = (-1.0 * SIN_NEG45 * diff_left + COS_NEG45 * diff_right) * (1.0/1.21);
-
-    // left right is reversed
-    joy_x_out = -1.0 * constrain(joy_x_out, -1.0, 1.0);
-    joy_y_out = constrain(joy_y_out, -1.0, 1.0);
-
-    char buffer[500];
-    sprintf(buffer, "joy x: %.4f; joy y: %.4f\n\n\n", joy_x_out, joy_y_out);
-    Serial.println(buffer);
-}
-
 void DifferentialToJoyTranslator::get_sbus_joy(float &joy_x_out, float &joy_y_out) {
     data = sbus_rx_->data();
 
     ControllerProfile ctrl = build_controller(CONTROLLER);
 
-    int left = data.ch[ctrl.left_channel];
-    int right = data.ch[ctrl.right_channel];
+    int left = data.ch[ctrl.left_channel-1];
+    int right = data.ch[ctrl.right_channel-1];
 
     char buffer[1000];
 
     // if system is disarmed, do nothing
-    if (data.ch[ctrl.arm_channel] == ctrl.disarm_value) {
+    if (data.ch[ctrl.arm_channel-1] != ctrl.arm_value) {
         joy_x_out = 0;
         joy_y_out = 0;
 
@@ -82,10 +68,10 @@ void DifferentialToJoyTranslator::get_sbus_joy(float &joy_x_out, float &joy_y_ou
     sprintf(buffer, "left channel (%d): %d; right channel (%d): %d;", ctrl.left_channel, left, ctrl.right_channel, right);
     Serial.println(buffer);
 
-    if (abs(left_scaled) < 0.1) {
+    if (abs(left_scaled) < ctrl.dead_percentage) {
         left_scaled = 0;
     }
-    if (abs(right_scaled) < 0.1) {
+    if (abs(right_scaled) < ctrl.dead_percentage) {
         right_scaled = 0;
     }
 
@@ -94,8 +80,6 @@ void DifferentialToJoyTranslator::get_sbus_joy(float &joy_x_out, float &joy_y_ou
 
     joy_x_out = right_scaled;
     joy_y_out = left_scaled;
-
-    // differential_to_joy(left_float, right_float, joy_x_out, joy_y_out);
 }
 
 // void JoyToJoyTranslator::get_sbus_joy(float &joy_x_out, float &joy_y_out) {

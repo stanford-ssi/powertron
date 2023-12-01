@@ -171,79 +171,79 @@ void handle_joystick(drive_data_t *drive_data) {
     }
 }
 
-void handle_telem(system_data_t *system_data) {
-    StaticJsonDocument<1024> doc;
-    doc["type"] = ID_TELEM;
-    JsonObject drive_telem = doc.createNestedObject("drive_telem");
-    JsonObject drum_telem_fore = doc.createNestedObject("drum_telem_fore");
-    JsonObject drum_telem_aft = doc.createNestedObject("drum_telem_aft");
-    JsonObject system_telem = doc.createNestedObject("system_telem");
+// void handle_telem(system_data_t *system_data) {
+//     StaticJsonDocument<1024> doc;
+//     doc["type"] = ID_TELEM;
+//     JsonObject drive_telem = doc.createNestedObject("drive_telem");
+//     JsonObject drum_telem_fore = doc.createNestedObject("drum_telem_fore");
+//     JsonObject drum_telem_aft = doc.createNestedObject("drum_telem_aft");
+//     JsonObject system_telem = doc.createNestedObject("system_telem");
 
-    drive_telem["joy_x"] = system_data->drive_data.x;
-    drive_telem["joy_y"] = system_data->drive_data.y;
-    drive_telem["drive_status"] = system_data->drive_data.status;
+//     drive_telem["joy_x"] = system_data->drive_data.x;
+//     drive_telem["joy_y"] = system_data->drive_data.y;
+//     drive_telem["drive_status"] = system_data->drive_data.status;
 
-    drum_telem_fore["speed"] = system_data->drum_data.fore_drum_speed;
-    drum_telem_fore["position"] = fmod(system_data->drum_data.fore_drum_position, 1.0);
-    drum_telem_fore["height"] = system_data->lift_data.fore_lift_position;
-    drum_telem_fore["torque"] = system_data->drum_data.fore_drum_torque;
-    drum_telem_fore["average_torque"] = system_data->drum_data.fore_drum_average_torque;
-    drum_telem_fore["current"] = system_data->drum_data.fore_drum_current;
-    drum_telem_fore["lift_current"] = system_data->lift_data.fore_current;
+//     drum_telem_fore["speed"] = system_data->drum_data.fore_drum_speed;
+//     drum_telem_fore["position"] = fmod(system_data->drum_data.fore_drum_position, 1.0);
+//     drum_telem_fore["height"] = system_data->lift_data.fore_lift_position;
+//     drum_telem_fore["torque"] = system_data->drum_data.fore_drum_torque;
+//     drum_telem_fore["average_torque"] = system_data->drum_data.fore_drum_average_torque;
+//     drum_telem_fore["current"] = system_data->drum_data.fore_drum_current;
+//     drum_telem_fore["lift_current"] = system_data->lift_data.fore_current;
 
-    drum_telem_aft["speed"] = system_data->drum_data.aft_drum_speed;
-    drum_telem_aft["position"] = fmod(system_data->drum_data.aft_drum_position, 1.0);
-    drum_telem_aft["height"] = system_data->lift_data.aft_lift_position;
-    drum_telem_aft["torque"] = system_data->drum_data.aft_drum_torque;
-    drum_telem_aft["average_torque"] = system_data->drum_data.aft_drum_average_torque;
-    drum_telem_aft["current"] = system_data->drum_data.aft_drum_current;
-    drum_telem_aft["lift_current"] = system_data->lift_data.aft_current;
+//     drum_telem_aft["speed"] = system_data->drum_data.aft_drum_speed;
+//     drum_telem_aft["position"] = fmod(system_data->drum_data.aft_drum_position, 1.0);
+//     drum_telem_aft["height"] = system_data->lift_data.aft_lift_position;
+//     drum_telem_aft["torque"] = system_data->drum_data.aft_drum_torque;
+//     drum_telem_aft["average_torque"] = system_data->drum_data.aft_drum_average_torque;
+//     drum_telem_aft["current"] = system_data->drum_data.aft_drum_current;
+//     drum_telem_aft["lift_current"] = system_data->lift_data.aft_current;
 
-    JsonArray thermal_array = doc.createNestedArray("thermal_telem");
-    for (int i = 0; i < NUM_THERMAL_SENSORS; i++) {
-        JsonObject thermal_data = thermal_array.createNestedObject();
-        thermal_data["name"] = thermal_sensor_names[i];
-        thermal_data["temperature"] = system_data->thermistors.temperatures[i];
-    }
+//     JsonArray thermal_array = doc.createNestedArray("thermal_telem");
+//     for (int i = 0; i < NUM_THERMAL_SENSORS; i++) {
+//         JsonObject thermal_data = thermal_array.createNestedObject();
+//         thermal_data["name"] = thermal_sensor_names[i];
+//         thermal_data["temperature"] = system_data->thermistors.temperatures[i];
+//     }
 
-    // motor temperatures
-    JsonObject fore_motor_thermal = thermal_array.createNestedObject();
-    fore_motor_thermal["name"] = F("FORE_MOTOR_TEMP");
-    fore_motor_thermal["temperature"] = system_data->drum_data.fore_drum_motor_temperature;
+//     // motor temperatures
+//     JsonObject fore_motor_thermal = thermal_array.createNestedObject();
+//     fore_motor_thermal["name"] = F("FORE_MOTOR_TEMP");
+//     fore_motor_thermal["temperature"] = system_data->drum_data.fore_drum_motor_temperature;
 
-    JsonObject aft_motor_thermal = thermal_array.createNestedObject();
-    aft_motor_thermal["name"] = F("AFT_MOTOR_TEMP");
-    aft_motor_thermal["temperature"] = system_data->drum_data.aft_drum_motor_temperature;
+//     JsonObject aft_motor_thermal = thermal_array.createNestedObject();
+//     aft_motor_thermal["name"] = F("AFT_MOTOR_TEMP");
+//     aft_motor_thermal["temperature"] = system_data->drum_data.aft_drum_motor_temperature;
 
-    system_telem["system_voltage"] = system_data->lift_data.voltage;
-    system_telem["system_current"] = system_data->power_data.current_draw;
-    system_telem["system_power"] = system_data->power_data.total_power_usage;
-    system_telem["drive_errors"] = "";
-    system_telem["drum_errors"] = "";
-    system_telem["lift_errors"] = "";
-    system_telem["command_errors"] = "";
-    system_telem["system_mode"] = "NONE";
-    system_telem["hardfault"] = false;
-    system_telem["debug_data"] = debug_data;
+//     system_telem["system_voltage"] = system_data->lift_data.voltage;
+//     system_telem["system_current"] = system_data->power_data.current_draw;
+//     system_telem["system_power"] = system_data->power_data.total_power_usage;
+//     system_telem["drive_errors"] = "";
+//     system_telem["drum_errors"] = "";
+//     system_telem["lift_errors"] = "";
+//     system_telem["command_errors"] = "";
+//     system_telem["system_mode"] = "NONE";
+//     system_telem["hardfault"] = false;
+//     system_telem["debug_data"] = debug_data;
 
-    if (system_data->drive_data.has_error) {
-        system_telem["drive_errors"] = system_data->drive_data.error_message;
-    }
-    if (system_data->drum_data.has_error) {
-        system_telem["drum_errors"] = system_data->drum_data.error_message;
-    }
-    if (system_data->lift_data.has_error) {
-        system_telem["lift_errors"] = system_data->lift_data.error_message;
-    }
-    if (system_data->command_data.has_error) {
-        system_telem["command_errors"] = system_data->command_data.error_message;
-    }
-    if (debug_data != "") {
-        system_telem["debug_data"] = debug_data;
-    }
-    // serializeJson(doc, Serial);
-    // Serial.println();
-}
+//     if (system_data->drive_data.has_error) {
+//         system_telem["drive_errors"] = system_data->drive_data.error_message;
+//     }
+//     if (system_data->drum_data.has_error) {
+//         system_telem["drum_errors"] = system_data->drum_data.error_message;
+//     }
+//     if (system_data->lift_data.has_error) {
+//         system_telem["lift_errors"] = system_data->lift_data.error_message;
+//     }
+//     if (system_data->command_data.has_error) {
+//         system_telem["command_errors"] = system_data->command_data.error_message;
+//     }
+//     if (debug_data != "") {
+//         system_telem["debug_data"] = debug_data;
+//     }
+//     // serializeJson(doc, Serial);
+//     // Serial.println();
+// }
 
 void handle_LEDS() {
     // TODO(HEIDT) create enum of LED statuses
@@ -299,7 +299,7 @@ void loop() {
     handle_joystick(&system_data.drive_data);
     handle_LEDS();
 
-    handle_telem(&system_data);
+    // handle_telem(&system_data);
 
     unsigned long loop_end_time = millis();
     delay_loop_period(loop_end_time, loop_start_time);

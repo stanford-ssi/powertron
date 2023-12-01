@@ -18,6 +18,8 @@ struct ControllerProfile {
     int left_channel;
     int right_channel;
     int arm_channel;
+
+    double dead_percentage;
 };
 
 ControllerProfile build_controller(ControllerType_t controller);
