@@ -1,6 +1,7 @@
 typedef enum ControllerType {
     FLYSKY,
-    FLYSKY_LEFT
+    FLYSKY_LEFT,
+    PIXHAWK,
 } ControllerType_t;
 
 struct ControllerProfile {
@@ -12,6 +13,9 @@ struct ControllerProfile {
 
     int arm_value;
     int disarm_value;
+
+    int autopilot_value;
+    int manual_value;
 
     bool reversed;
 
