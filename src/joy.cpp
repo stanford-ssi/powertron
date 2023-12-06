@@ -9,7 +9,7 @@
 #define SIN_NEG45 (-0.70710678118)
 
 #define CONTROLLER FLYSKY
-#define DEBUG_PRINT false
+#define DEBUG_PRINT true
 
 void DifferentialToJoyTranslator::get_sbus_joy(float &joy_x_out, float &joy_y_out) {
     data = sbus_rx_->data();
@@ -48,7 +48,7 @@ void DifferentialToJoyTranslator::get_sbus_joy(float &joy_x_out, float &joy_y_ou
     left_scaled = constrain(left_scaled, -1.0, 1.0);
     right_scaled = constrain(right_scaled, -1.0, 1.0);
 
-    /// TODO harden to preven buffer overflows
+    /// TODO harden to prevent buffer overflows
     if (DEBUG_PRINT) {
         sprintf(buffer, "(1) %d (2) %d (3) %d (4) %d", data.ch[0], data.ch[1], data.ch[2], data.ch[3]);
         Serial.println(buffer);

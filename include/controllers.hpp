@@ -18,6 +18,7 @@ struct ControllerProfile {
     int left_channel;
     int right_channel;
     int arm_channel;
+    int autopilot_channel;
 
     double dead_percentage;
 };

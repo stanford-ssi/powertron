@@ -19,9 +19,10 @@ ControllerProfile build_controller(ControllerType_t controller) {
 
             .reversed = true,
 
-            .left_channel = 1, // thodle
+            .left_channel = 1, // throttle
             .right_channel = 3, // steering
             .arm_channel = 6, // 1 indexing
+            .autopilot_channel = 5, // 0 indexing
 
             .dead_percentage = 0.01,
         };
@@ -39,9 +40,10 @@ ControllerProfile build_controller(ControllerType_t controller) {
 
             .reversed = true,
 
-            .left_channel = 3, // throddle
+            .left_channel = 3, // throttle
             .right_channel = 1, // steering
             .arm_channel = 6, // 1 indexing
+            .autopilot_channel = 5, // 0 indexing
 
             .dead_percentage = 0.02,
         };
