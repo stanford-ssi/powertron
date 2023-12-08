@@ -11,29 +11,17 @@
 #define CONTROLLER FLYSKY
 #define DEBUG_PRINT true
 
-void GetAutopilotJoy(float &joy_x_out, float &joy_y_out, bfs::SbusData &data) {
-    joy_y_out = (float)(throttle - 1000.0) / 828.0;
-    joy_x_out = (float)(steering - 1000.0) / 828.0;  
-    joy_y_out = constrain(joy_y_out, -1.0, 1.0);
-    joy_x_out = constrain(joy_x_out, -1.0, 1.0);
-    
-}
-
 void DifferentialToJoyTranslator::get_sbus_joy(float &joy_x_out, float &joy_y_out) {
     data = sbus_rx_->data();
 
-    ControllerProfile ctrl;
+    ControllerProfile ctrl = build_controller(CONTROLLER);
 
     // check if autopilot is on and if so return
     // if autopilot is on we will hard code a translation scheme
 
     if (data.ch[ctrl.autopilot_channel-1] == ctrl.autopilot_value) {
         ctrl = build_controller(PIXHAWK);
-    } else {
-        ctrl = build_controller(CONTROLLER);
-    }
-
-
+    } 
 
 
     int left = data.ch[ctrl.left_channel-1];

@@ -53,20 +53,19 @@ ControllerProfile build_controller(ControllerType_t controller) {
 
     case PIXHAWK:
         return ControllerProfile {
-            // we only care about the left channel which is the throttle
-            .left_min = 1000,
-            .right_min = 1000,
+            .left_min = 1637,
+            .right_min = 1637,
 
-            .left_max = 2000, 
-            .right_max = 2000, 
+            .left_max = 353, 
+            .right_max = 353, 
 
-            .arm_value = 2000,
-            .disarm_value = 1000,
+            .arm_value = 1804,
+            .disarm_value = 232,
 
-            .autopilot_value = 2000,
-            .manual_value = 1000,
+            .autopilot_value = 1804,
+            .manual_value = 232,
 
-            .reversed = false,
+            .reversed = true,
 
             .left_channel = 3, // throttle
             .right_channel = 1, // steering
@@ -76,5 +75,5 @@ ControllerProfile build_controller(ControllerType_t controller) {
             .dead_percentage = 0.02,
         };
     }
-}
+};
 
