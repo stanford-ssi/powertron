@@ -18,6 +18,7 @@ ControllerProfile build_controller(ControllerType_t controller) {
             .disarm_value = 232,
 
             .reversed = true,
+            .forward_only = false,
 
             .left_channel = 1, // throttle
             .right_channel = 3, // steering
@@ -42,6 +43,7 @@ ControllerProfile build_controller(ControllerType_t controller) {
             .manual_value = 232,
 
             .reversed = true,
+            .forward_only = false,
 
             .left_channel = 3, // throttle
             .right_channel = 1, // steering
@@ -66,6 +68,7 @@ ControllerProfile build_controller(ControllerType_t controller) {
             .manual_value = 232,
 
             .reversed = true,
+            .forward_only = true,
 
             .left_channel = 3, // throttle
             .right_channel = 1, // steering
@@ -73,6 +76,31 @@ ControllerProfile build_controller(ControllerType_t controller) {
             .autopilot_channel = 5, // 0 indexing
 
             .dead_percentage = 0.02,
+        };
+    case ORANGE:
+        return ControllerProfile {
+            .left_min = 842,
+            .right_min = 202,
+
+            .left_max = 1802, 
+            .right_max = 1802, 
+
+            .arm_value = 1002,
+            .disarm_value = 202,
+
+            .autopilot_value = 1804,
+            .manual_value = 232,
+
+            .reversed = false,
+            .forward_only = true,
+
+            .left_channel = 1, // throttle
+            .right_channel = 2, // steering
+
+            .arm_channel = 5, // 1 indexing
+            .autopilot_channel = 5, // 0 indexing
+
+            .dead_percentage = 0,
         };
     }
 };

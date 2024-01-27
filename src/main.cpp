@@ -77,6 +77,7 @@ MCP4725 y_dac(YDAC_ADDR, &Wire);
 MCP4725 x_dac(XDAC_ADDR, &Wire);
 
 bfs::SbusRx sbus_rx(&Serial8);
+
 bfs::SbusData data;
 // JoyToJoyTranslator translator(&sbus_rx, SBUS_THROTTLE_CHANNEL, SBUS_STEERING_CHANNEL);
 DifferentialToJoyTranslator translator(&sbus_rx);
@@ -147,6 +148,7 @@ void handle_joystick(drive_data_t *drive_data) {
     // TODO(Heidt) handle the failsafe, would be nice to setup for this
     if (sbus_rx.Read()) {
         translator.get_sbus_joy(joy_x, joy_y);
+        // Serial.println("testa ");
         bfs::SbusData data = sbus_rx.data();
         drive_data->status = data.ch[SBUS_DISARM_CHANNEL];
         // never drive if the disarm switch is on
@@ -287,6 +289,7 @@ void handle_setup_data(system_data_t *data) {
 }
 
 void loop() {
+    // Serial.println("test");
     unsigned long loop_start_time = millis();
     static bool data_initialized = false;
     static system_data_t system_data;

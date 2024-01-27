@@ -8,7 +8,7 @@
 #define COS_NEG45 (0.70710678118)
 #define SIN_NEG45 (-0.70710678118)
 
-#define CONTROLLER FLYSKY
+#define CONTROLLER ORANGE
 #define DEBUG_PRINT true
 
 void DifferentialToJoyTranslator::get_sbus_joy(float &joy_x_out, float &joy_y_out) {
@@ -19,9 +19,9 @@ void DifferentialToJoyTranslator::get_sbus_joy(float &joy_x_out, float &joy_y_ou
     // check if autopilot is on and if so return
     // if autopilot is on we will hard code a translation scheme
 
-    if (data.ch[ctrl.autopilot_channel-1] == ctrl.autopilot_value) {
-        ctrl = build_controller(PIXHAWK);
-    } 
+    // if (data.ch[ctrl.autopilot_channel-1] == ctrl.autopilot_value) {
+    //     ctrl = build_controller(PIXHAWK);
+    // } 
 
 
     int left = data.ch[ctrl.left_channel-1];
@@ -30,14 +30,14 @@ void DifferentialToJoyTranslator::get_sbus_joy(float &joy_x_out, float &joy_y_ou
     char buffer[1000];
 
     // if system is disarmed, do nothing
-    if (data.ch[ctrl.arm_channel-1] != ctrl.arm_value) {
-        joy_x_out = 0;
-        joy_y_out = 0;
+    /* if (data.ch[ctrl.arm_channel-1] != ctrl.arm_value) { */
+    /*     joy_x_out = 0; */
+    /*     joy_y_out = 0; */
 
-        Serial.println("disarmed, returning 0s");
+    /*     Serial.println("disarmed, returning 0s"); */
 
-        return;
-    }
+    /*     /\* return; *\/ */
+    /* } */
 
     float left_scaled = 0;
     float right_scaled = 0;
@@ -46,11 +46,19 @@ void DifferentialToJoyTranslator::get_sbus_joy(float &joy_x_out, float &joy_y_ou
     float right_norm = ctrl.right_max - ctrl.right_min;
 
     if (ctrl.reversed) {
-        left_scaled = ((-(float) (left-ctrl.left_max))/left_norm)*2-1;
+        if (ctrl.forward_only) {
+            left_scaled = ((-(float) (left-ctrl.left_max))/left_norm);
+        } else {
+            left_scaled = ((-(float) (left-ctrl.left_max))/left_norm)*2-1;
+        }
         right_scaled = ((-(float) (right-ctrl.right_max))/right_norm)*2-1;
     } else {
-        left_scaled = ((float)(left-ctrl.left_min)/left_norm)*2-1;
-        right_scaled = ((float)(left-ctrl.right_min)/right_norm)*2-1;
+        if (ctrl.forward_only) {
+            left_scaled = ((float)(left-ctrl.left_min)/left_norm)*1;
+        } else {
+            left_scaled = ((float)(left-ctrl.left_min)/left_norm)*2-1;
+        }
+        right_scaled = ((float)(right-ctrl.right_min)/right_norm)*2-1;
     }
 
     left_scaled = constrain(left_scaled, -1.0, 1.0);
@@ -86,8 +94,13 @@ void DifferentialToJoyTranslator::get_sbus_joy(float &joy_x_out, float &joy_y_ou
     sprintf(buffer, "left norm: %.4f; right norm: %.4f", left_scaled, right_scaled);
     Serial.println(buffer);
 
+    // TODO BAD
+    // joy_x_out = left_scaled;
+    // joy_y_out = right_scaled;
+
     joy_x_out = right_scaled;
     joy_y_out = left_scaled;
+
 }
 
 // void JoyToJoyTranslator::get_sbus_joy(float &joy_x_out, float &joy_y_out) {
