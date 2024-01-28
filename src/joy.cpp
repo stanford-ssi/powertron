@@ -8,8 +8,19 @@
 #define COS_NEG45 (0.70710678118)
 #define SIN_NEG45 (-0.70710678118)
 
-#define CONTROLLER ORANGE
+#define CONTROLLER ORANGE_DIFF
 #define DEBUG_PRINT true
+
+void differential_to_joy(float diff_left, float diff_right, float &joy_x_out, float &joy_y_out) {
+    // because of the mapping between these two, things get a little wonky at the corners, hence the scaling terms
+    joy_x_out = (COS_NEG45 * diff_left + SIN_NEG45 * diff_right);
+    joy_y_out = (-1.0 * SIN_NEG45 * diff_left + COS_NEG45 * diff_right);
+
+    // left right is reversed
+    joy_x_out = constrain(joy_x_out, -0.95, 0.95);
+    joy_y_out = constrain(joy_y_out, -0.95, 0.95);
+}
+
 
 void DifferentialToJoyTranslator::get_sbus_joy(float &joy_x_out, float &joy_y_out) {
     data = sbus_rx_->data();
@@ -94,12 +105,20 @@ void DifferentialToJoyTranslator::get_sbus_joy(float &joy_x_out, float &joy_y_ou
     sprintf(buffer, "left norm: %.4f; right norm: %.4f", left_scaled, right_scaled);
     Serial.println(buffer);
 
-    // TODO BAD
-    // joy_x_out = left_scaled;
-    // joy_y_out = right_scaled;
+    left_scaled = constrain(left_scaled, -1.0, 1.0);
+    right_scaled = constrain(right_scaled, -1.0, 1.0);
 
-    joy_x_out = right_scaled;
-    joy_y_out = left_scaled;
+
+    if (ctrl.differential) {
+        differential_to_joy(left_scaled, right_scaled, joy_x_out, joy_y_out);
+    } else {
+        joy_x_out = right_scaled;
+        joy_y_out = left_scaled;
+    }
+
+    sprintf(buffer, "left joy: %.4f; right joy: %.4f", joy_x_out, joy_y_out);
+    Serial.println(buffer);
+
 
 }
 

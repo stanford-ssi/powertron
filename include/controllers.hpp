@@ -3,6 +3,7 @@ typedef enum ControllerType {
     FLYSKY_LEFT,
     PIXHAWK,
     ORANGE,
+    ORANGE_DIFF,
 } ControllerType_t;
 
 struct ControllerProfile {
@@ -20,6 +21,7 @@ struct ControllerProfile {
 
     bool reversed;
     bool forward_only;
+    bool differential;
 
     int left_channel;
     int right_channel;
