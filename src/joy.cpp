@@ -2,6 +2,7 @@
 #include <ArduinoJson.h>
 #include "joy.hpp"
 #include "controllers.hpp"
+#include "utils.hpp"
 #include <cstdio>
 #include <cmath>
 
@@ -11,15 +12,15 @@
 #define CONTROLLER ORANGE_DIFF
 #define DEBUG_PRINT true
 
-void differential_to_joy(float diff_left, float diff_right, float &joy_x_out, float &joy_y_out) {
-    // because of the mapping between these two, things get a little wonky at the corners, hence the scaling terms
-    joy_x_out = (COS_NEG45 * diff_left + SIN_NEG45 * diff_right);
-    joy_y_out = (-1.0 * SIN_NEG45 * diff_left + COS_NEG45 * diff_right);
+// void differential_to_joy(float diff_left, float diff_right, float &joy_x_out, float &joy_y_out) {
+//     // because of the mapping between these two, things get a little wonky at the corners, hence the scaling terms
+//     joy_x_out = (COS_NEG45 * diff_left + SIN_NEG45 * diff_right);
+//     joy_y_out = (-1.0 * SIN_NEG45 * diff_left + COS_NEG45 * diff_right);
 
-    // left right is reversed
-    joy_x_out = constrain(joy_x_out, -0.95, 0.95);
-    joy_y_out = constrain(joy_y_out, -0.95, 0.95);
-}
+//     // left right is reversed
+//     joy_x_out = constrain(joy_x_out, -0.95, 0.95);
+//     joy_y_out = constrain(joy_y_out, -0.95, 0.95);
+// }
 
 
 void DifferentialToJoyTranslator::get_sbus_joy(float &joy_x_out, float &joy_y_out) {
