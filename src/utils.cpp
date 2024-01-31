@@ -1,7 +1,7 @@
 #include "utils.hpp"
 
 void differential_to_joy(float wl, float wr, float &joy_x_out, float &joy_y_out) {
-    if(abs(wl)>1 || abs(wr)>1) {
+    if(abs(wl)>1 || abs(wr)>1 || (wl == 0 && wr == 0)) {
         joy_x_out = 0;
         joy_y_out = 0;
         return;
