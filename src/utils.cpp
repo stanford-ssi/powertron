@@ -42,7 +42,7 @@ void differential_to_joy(float wl, float wr, float &joy_x_out, float &joy_y_out)
         testY = abs(sin(theta))/cos(theta);
     }
     else if(theta > M_PI/4 && theta <= 3*M_PI/4) {
-        testX = -tan(theta-(M_PI/2));
+        testX = 1/tan(theta);
         testY = 1;
     }
     else if(theta > 3*M_PI/4 && theta <= 5*M_PI/4) {
@@ -50,7 +50,7 @@ void differential_to_joy(float wl, float wr, float &joy_x_out, float &joy_y_out)
         testY = abs(sin(theta))/cos(theta);
     }
     else if(theta > 5*M_PI/4 && theta <= 7*M_PI/4) {
-        testX = tan(theta-(M_PI/2));;
+        testX = -1/tan(theta);
         testY = -1;
     }
 
